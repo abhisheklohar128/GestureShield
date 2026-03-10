@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="mr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0a0a">
+<title>GestureShield</title>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+:root {
+  --green:#00e676;--green2:#00c853;--dark:#0a0a0a;
+  --card:#141414;--card2:#1c1c1c;--border:#2a2a2a;
+  --text:#f0f0f0;--muted:#666;--red:#ff5252;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:var(--dark);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;}
+.page{display:none;flex-direction:column;min-height:100vh;padding-bottom:80px;}
+.page.active{display:flex;}
+.top-bar{display:flex;justify-content:space-between;align-items:center;padding:48px 20px 12px;}
+.logo{font-family:'Space Mono',monospace;font-size:1.05rem;font-weight:700;color:var(--green);}
+.logo span{color:var(--text);}
+.icon-btn{width:40px;height:40px;border-radius:12px;background:var(--card2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.1rem;}
+.pill{display:inline-flex;align-items:center;gap:8px;background:rgba(0,230,118,0.08);border:1px solid rgba(0,230,118,0.2);border-radius:100px;padding:5px 14px;font-size:0.72rem;color:var(--green);letter-spacing:1px;text-transform:uppercase;}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted);}
+.dot.on{background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.4}}
+.hero{padding:16px 20px 0;text-align:center;}
+.hero h1{font-size:1.9rem;font-weight:700;line-height:1.2;letter-spacing:-0.5px;margin:12px 0 8px;}
+.hero h1 em{color:var(--green);font-style:normal;}
+.hero p{color:var(--muted);font-size:0.85rem;line-height:1.6;}
+.cam-card{margin:16px 20px 0;border-radius:22px;overflow:hidden;position:relative;background:#000;border:1px solid var(--border);aspect-ratio:3/4;max-height:360px;}
+#video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block;}
+#overlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;transform:scaleX(-1);}
+.cam-placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#0d0d0d;}
+.cam-placeholder .big-icon{font-size:3rem;opacity:0.25;}
+.cam-placeholder p{color:var(--muted);font-size:0.8rem;}
+.badge-tl{position:absolute;top:12px;left:12px;background:rgba(0,0,0,0.7);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:12px;padding:7px 13px;font-size:0.78rem;display:flex;align-items:center;gap:8px;}
+.badge-tl.active{border-color:rgba(0,230,118,0.5);}
+.badge-br{position:absolute;bottom:12px;right:12px;background:rgba(0,0,0,0.7);backdrop-filter:blur(10px);border:1px solid rgba(0,230,118,0.3);border-radius:10px;padding:5px 11px;font-size:0.7rem;color:var(--green);}
+.gesture-flash{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity 0.15s;}
+.gesture-flash.show{opacity:1;}
+.flash-pill{background:rgba(0,0,0,0.8);backdrop-filter:blur(16px);border:2px solid var(--green);border-radius:20px;padding:14px 28px;font-size:1.4rem;font-weight:700;color:var(--green);text-align:center;}
+.flash-pill small{display:block;font-size:0.7rem;color:#aaa;font-weight:400;margin-top:2px;}
+.toggle-row{margin:12px 20px 0;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;}
+.tl{font-size:0.92rem;font-weight:500;}
+.ts{font-size:0.75rem;color:var(--muted);margin-top:2px;}
+.toggle{width:52px;height:28px;border-radius:100px;background:var(--border);position:relative;cursor:pointer;border:none;flex-shrink:0;transition:background 0.3s;}
+.toggle.on{background:var(--green);}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform 0.3s;box-shadow:0 1px 4px rgba(0,0,0,0.3);}
+.toggle.on::after{transform:translateX(24px);}
+.sec-title{font-size:0.68rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);padding:22px 20px 10px;}
+.g-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 20px;}
+.g-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:16px 14px;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden;transition:border-color 0.2s,background 0.2s;}
+.g-card.lit{border-color:var(--green);background:rgba(0,230,118,0.07);}
+.g-card .em{font-size:1.7rem;}
+.g-card .gn{font-size:0.82rem;font-weight:600;}
+.g-card .ga{font-size:0.72rem;color:var(--muted);}
+.g-card .gk{position:absolute;top:10px;right:10px;font-family:'Space Mono',monospace;font-size:0.6rem;background:var(--card2);border:1px solid var(--border);border-radius:5px;padding:2px 6px;color:var(--muted);}
+
+/* WAKE LOCK BANNER */
+.wake-banner{margin:10px 20px 0;background:rgba(0,230,118,0.06);border:1px solid rgba(0,230,118,0.2);border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:10px;font-size:0.78rem;color:#aaa;}
+.wake-banner .wb-icon{font-size:1.1rem;flex-shrink:0;}
+.wake-banner strong{color:var(--green);}
+.wake-banner.warn{background:rgba(255,82,82,0.06);border-color:rgba(255,82,82,0.2);}
+.wake-banner.warn strong{color:var(--red);}
+
+/* FLOATING MINI */
+#floatingMini{position:fixed;bottom:100px;right:16px;width:64px;height:64px;border-radius:50%;background:var(--card2);border:2px solid var(--green);display:none;align-items:center;justify-content:center;font-size:1.6rem;z-index:999;box-shadow:0 4px 20px rgba(0,230,118,0.3);cursor:pointer;animation:pulse 2s infinite;}
+#floatingMini.show{display:flex;}
+@keyframes pulse{0%,100%{box-shadow:0 4px 20px rgba(0,230,118,0.3)}50%{box-shadow:0 4px 30px rgba(0,230,118,0.6)}}
+
+.priv-card{margin:0 20px 12px;background:rgba(0,230,118,0.04);border:1px solid rgba(0,230,118,0.18);border-radius:18px;padding:18px;}
+.priv-card h3{font-size:0.9rem;font-weight:600;color:var(--green);margin-bottom:12px;}
+.priv-item{display:flex;gap:10px;margin-bottom:9px;align-items:flex-start;}
+.priv-item:last-child{margin-bottom:0;}
+.pi-check{color:var(--green);flex-shrink:0;margin-top:1px;}
+.pi-text{font-size:0.8rem;color:#aaa;line-height:1.5;}
+.page-header{display:flex;align-items:center;gap:14px;padding:48px 20px 18px;}
+.page-header h2{font-size:1.15rem;font-weight:600;}
+.s-group{margin:0 20px 12px;}
+.s-group-lbl{font-size:0.68rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;padding-left:2px;}
+.s-card{background:var(--card);border:1px solid var(--border);border-radius:18px;overflow:hidden;}
+.s-row{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--border);}
+.s-row:last-child{border-bottom:none;}
+.s-left{display:flex;align-items:center;gap:12px;}
+.s-ico{width:34px;height:34px;border-radius:10px;background:rgba(0,230,118,0.1);display:flex;align-items:center;justify-content:center;font-size:0.95rem;}
+.s-title{font-size:0.88rem;font-weight:500;}
+.s-sub{font-size:0.73rem;color:var(--muted);margin-top:1px;}
+.s-right{color:var(--muted);font-size:0.82rem;}
+.slider-row{padding:15px 18px;border-bottom:1px solid var(--border);}
+.slider-row:last-child{border-bottom:none;}
+.slider-hdr{display:flex;justify-content:space-between;margin-bottom:10px;}
+.slider-hdr .s-title{font-size:0.88rem;font-weight:500;}
+.slider-hdr .s-val{font-family:'Space Mono',monospace;font-size:0.82rem;color:var(--green);}
+input[type=range]{-webkit-appearance:none;width:100%;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--green);box-shadow:0 0 6px rgba(0,230,118,0.4);cursor:pointer;}
+.g-list{padding:0 20px;display:flex;flex-direction:column;gap:10px;}
+.gd-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:18px;display:flex;align-items:center;gap:14px;}
+.gd-em{font-size:2.4rem;flex-shrink:0;}
+.gd-info h3{font-size:0.92rem;font-weight:600;}
+.gd-info p{font-size:0.78rem;color:var(--muted);margin-top:4px;line-height:1.5;}
+.tag{display:inline-block;margin-top:8px;background:rgba(0,230,118,0.1);border:1px solid rgba(0,230,118,0.25);border-radius:100px;padding:3px 10px;font-size:0.68rem;color:var(--green);}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:rgba(10,10,10,0.96);backdrop-filter:blur(20px);border-top:1px solid var(--border);display:flex;padding:8px 0 22px;z-index:100;}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:6px;}
+.nav-icon{font-size:1.25rem;}
+.nav-lbl{font-size:0.62rem;color:var(--muted);letter-spacing:0.5px;text-transform:uppercase;}
+.nav-item.active .nav-lbl{color:var(--green);}
+#loading-overlay{position:fixed;inset:0;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:999;}
+#loading-overlay.hide{display:none;}
+.loader{width:48px;height:48px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+#loading-overlay p{color:var(--muted);font-size:0.85rem;}
+#toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(10px);background:var(--card2);border:1px solid var(--border);border-radius:100px;padding:9px 20px;font-size:0.82rem;font-weight:500;opacity:0;transition:all 0.25s;pointer-events:none;white-space:nowrap;z-index:998;}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<div id="loading-overlay" class="hide">
+  <div class="loader"></div>
+  <p>Hand detection load होत आहे...</p>
+</div>
+
+<!-- Floating mini indicator when app is in background -->
+<div id="floatingMini" onclick="bringToFront()" title="GestureShield Active">🖐️</div>
+
+<!-- HOME PAGE -->
+<div id="pg-home" class="page active">
+  <div class="top-bar">
+    <div class="logo">Gesture<span>Shield</span></div>
+    <div class="icon-btn" onclick="nav('pg-settings')">⚙️</div>
+  </div>
+
+  <div class="hero">
+    <div class="pill"><div class="dot" id="statusDot"></div><span id="statusTxt">Camera बंद</span></div>
+    <h1>Screen <em>न</em> touch<br>करता control</h1>
+    <p>Real hand detection — कोणताही data<br>बाहेर जात नाही. सगळं तुमच्याच फोनमध्ये.</p>
+  </div>
+
+  <!-- Wake Lock Status Banner -->
+  <div class="wake-banner" id="wakeBanner">
+    <div class="wb-icon">🔆</div>
+    <div><strong>Screen Wake Lock</strong> — gesture चालू केल्यावर screen बंद होणार नाही</div>
+  </div>
+
+  <div class="cam-card">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+    <div class="cam-placeholder" id="camOff">
+      <div class="big-icon">📷</div>
+      <p>Camera सुरू करण्यासाठी toggle करा</p>
+    </div>
+    <div class="badge-tl" id="gestureBadge">
+      <div class="dot" id="gDot"></div>
+      <span id="gLabel">Waiting...</span>
+    </div>
+    <div class="badge-br">🔒 Local Only</div>
+    <div class="gesture-flash" id="gFlash">
+      <div class="flash-pill">
+        <span id="flashEmoji">✋</span>
+        <small id="flashAction">Pause</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="toggle-row">
+    <div><div class="tl">🖐️ Gesture Control</div><div class="ts" id="toggleSub">सुरू केल्यावर camera वापरेल</div></div>
+    <button class="toggle" id="mainToggle" onclick="toggleGesture()"></button>
+  </div>
+
+  <!-- Background mode info -->
+  <div class="toggle-row" style="margin-top:8px;">
+    <div><div class="tl">📱 App Switch करताना</div><div class="ts">Chrome minimize करा — पूर्ण बंद करू नका</div></div>
+    <div style="font-size:1.4rem;">💡</div>
+  </div>
+
+  <div class="sec-title">Gesture Reference</div>
+  <div class="g-grid">
+    <div class="g-card" id="gc-up"><span class="em">☝️</span><div class="gn">Scroll वर</div><div class="ga">1 बोट वर</div><div class="gk">↑</div></div>
+    <div class="g-card" id="gc-down"><span class="em">👇</span><div class="gn">Scroll खाली</div><div class="ga">1 बोट खाली</div><div class="gk">↓</div></div>
+    <div class="g-card" id="gc-open"><span class="em">✋</span><div class="gn">Pause/Play</div><div class="ga">हात उघडा</div><div class="gk">⏸</div></div>
+    <div class="g-card" id="gc-ok"><span class="em">👌</span><div class="gn">Tap/Click</div><div class="ga">OK sign</div><div class="gk">👆</div></div>
+    <div class="g-card" id="gc-thumb-up"><span class="em">👍</span><div class="gn">Volume +</div><div class="ga">Thumbs up</div><div class="gk">🔊</div></div>
+    <div class="g-card" id="gc-thumb-down"><span class="em">👎</span><div class="gn">Volume -</div><div class="ga">Thumbs down</div><div class="gk">🔉</div></div>
+    <div class="g-card" id="gc-peace"><span class="em">✌️</span><div class="gn">Back</div><div class="ga">2 बोटे</div><div class="gk">◀</div></div>
+    <div class="g-card" id="gc-fist"><span class="em">✊</span><div class="gn">Screenshot</div><div class="ga">मूठ बंद</div><div class="gk">📸</div></div>
+  </div>
+</div>
+
+<!-- GESTURES PAGE -->
+<div id="pg-gestures" class="page">
+  <div class="page-header">
+    <div class="icon-btn" onclick="nav('pg-home')">←</div>
+    <h2>सर्व Gestures</h2>
+  </div>
+  <div class="g-list">
+    <div class="gd-card"><div class="gd-em">☝️</div><div class="gd-info"><h3>Scroll वर</h3><p>फक्त एक बोट (index finger) वर करा — बाकी सर्व बोटे बंद.</p><span class="tag">↑ Scroll Up</span></div></div>
+    <div class="gd-card"><div class="gd-em">👇</div><div class="gd-info"><h3>Scroll खाली</h3><p>फक्त एक बोट (index finger) खाली करा — बाकी सर्व बोटे बंद.</p><span class="tag">↓ Scroll Down</span></div></div>
+    <div class="gd-card"><div class="gd-em">✋</div><div class="gd-info"><h3>Pause / Play</h3><p>हात पूर्णपणे उघडा (5 बोटे वर) — video pause/play होईल.</p><span class="tag">⏸ Media Control</span></div></div>
+    <div class="gd-card"><div class="gd-em">👌</div><div class="gd-info"><h3>Tap / Click</h3><p>अंगठा + तर्जनी एकत्र करा (OK sign) — screen tap होईल.</p><span class="tag">👆 Click</span></div></div>
+    <div class="gd-card"><div class="gd-em">👍</div><div class="gd-info"><h3>Volume वाढवा</h3><p>फक्त अंगठा वर (thumbs up) — volume एक level वाढेल.</p><span class="tag">🔊 Volume +</span></div></div>
+    <div class="gd-card"><div class="gd-em">👎</div><div class="gd-info"><h3>Volume कमी करा</h3><p>फक्त अंगठा खाली (thumbs down) — volume एक level कमी होईल.</p><span class="tag">🔉 Volume -</span></div></div>
+    <div class="gd-card"><div class="gd-em">✌️</div><div class="gd-info"><h3>Back</h3><p>दोन बोटे (index + middle) वर करा — मागे जाईल.</p><span class="tag">◀ Navigate Back</span></div></div>
+    <div class="gd-card"><div class="gd-em">✊</div><div class="gd-info"><h3>Screenshot</h3><p>सर्व बोटे आत घ्या (मूठ बंद) — screenshot घेईल.</p><span class="tag">📸 Screenshot</span></div></div>
+  </div>
+</div>
+
+<!-- SETTINGS PAGE -->
+<div id="pg-settings" class="page">
+  <div class="page-header">
+    <div class="icon-btn" onclick="nav('pg-home')">←</div>
+    <h2>Settings</h2>
+  </div>
+
+  <div class="priv-card">
+    <h3>🔒 Privacy Guarantee</h3>
+    <div class="priv-item"><span class="pi-check">✓</span><div class="pi-text">Camera video कधीही server ला जात नाही — सगळे processing तुमच्याच फोनमध्ये होते (on-device AI).</div></div>
+    <div class="priv-item"><span class="pi-check">✓</span><div class="pi-text">Gesture साठी कोणताही account, login, किंवा internet connection लागत नाही.</div></div>
+    <div class="priv-item"><span class="pi-check">✓</span><div class="pi-text">Screen Wake Lock वापरतो — screen बंद होत नाही, camera चालू राहतो.</div></div>
+  </div>
+
+  <div class="s-group">
+    <div class="s-group-lbl">Gesture</div>
+    <div class="s-card">
+      <div class="slider-row">
+        <div class="slider-hdr"><span class="s-title">Sensitivity</span><span class="s-val" id="sensVal">Level 3</span></div>
+        <input type="range" min="1" max="6" value="3" id="sensSlider" oninput="document.getElementById('sensVal').textContent='Level '+this.value">
+      </div>
+      <div class="slider-row">
+        <div class="slider-hdr"><span class="s-title">Hold Time</span><span class="s-val" id="holdVal">0.8 sec</span></div>
+        <input type="range" min="2" max="15" value="5" id="holdSlider" oninput="document.getElementById('holdVal').textContent=(this.value/6).toFixed(1)+' sec'">
+      </div>
+    </div>
+  </div>
+
+  <div class="s-group">
+    <div class="s-group-lbl">Feedback</div>
+    <div class="s-card">
+      <div class="s-row">
+        <div class="s-left"><div class="s-ico">📳</div><div><div class="s-title">Vibration</div><div class="s-sub">Gesture ओळखल्यावर vibrate</div></div></div>
+        <button class="toggle on" id="hapticToggle" onclick="this.classList.toggle('on')"></button>
+      </div>
+      <div class="s-row">
+        <div class="s-left"><div class="s-ico">🔆</div><div><div class="s-title">Screen Wake Lock</div><div class="s-sub">Screen बंद होऊ देत नाही</div></div></div>
+        <button class="toggle on" id="wakeLockToggle" onclick="toggleWakeLockPref()"></button>
+      </div>
+      <div class="s-row">
+        <div class="s-left"><div class="s-ico">⚡</div><div><div class="s-title">Auto-off Timer</div><div class="s-sub">Battery वाचवण्यासाठी</div></div></div>
+        <select id="autoOff" style="background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 8px;font-size:0.78rem;">
+          <option>1 hour</option><option selected>2 hours</option><option>Never</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Nav -->
+<div class="bottom-nav">
+  <div class="nav-item active" id="nav-home" onclick="nav('pg-home')"><div class="nav-icon">🏠</div><div class="nav-lbl">Home</div></div>
+  <div class="nav-item" id="nav-pg-gestures" onclick="nav('pg-gestures')"><div class="nav-icon">🖐️</div><div class="nav-lbl">Gestures</div></div>
+  <div class="nav-item" id="nav-pg-settings" onclick="nav('pg-settings')"><div class="nav-icon">⚙️</div><div class="nav-lbl">Settings</div></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Navigation ──
+function nav(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const navEl = document.getElementById('nav-' + id) || document.getElementById('nav-home');
+  navEl.classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function toast(msg, dur = 2200) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+function vibrate(ms = 35) {
+  if (navigator.vibrate && document.getElementById('hapticToggle').classList.contains('on'))
+    navigator.vibrate(ms);
+}
+
+// ── Wake Lock ──
+let wakeLock = null;
+let wakeLockEnabled = true;
+
+async function requestWakeLock() {
+  if (!wakeLockEnabled) return;
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => {
+        wakeLock = null;
+        // Re-acquire when page becomes visible again
+        if (gestureActive && !document.hidden) requestWakeLock();
+      });
+      updateWakeBanner(true);
+    }
+  } catch (e) {
+    updateWakeBanner(false);
+  }
+}
+
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+  updateWakeBanner(false);
+}
+
+function updateWakeBanner(active) {
+  const b = document.getElementById('wakeBanner');
+  if (active) {
+    b.className = 'wake-banner';
+    b.innerHTML = '<div class="wb-icon">🔆</div><div><strong>Screen Wake Lock चालू</strong> — screen बंद होणार नाही, gesture चालू राहील</div>';
+  } else {
+    b.className = 'wake-banner warn';
+    b.innerHTML = '<div class="wb-icon">⚠️</div><div><strong>Wake Lock नाही</strong> — Chrome minimize केल्यावर gesture थांबेल. Chrome उघडे ठेवा.</div>';
+  }
+}
+
+function toggleWakeLockPref() {
+  wakeLockEnabled = !wakeLockEnabled;
+  document.getElementById('wakeLockToggle').classList.toggle('on', wakeLockEnabled);
+  if (gestureActive) {
+    if (wakeLockEnabled) requestWakeLock();
+    else releaseWakeLock();
+  }
+}
+
+// Re-acquire wake lock when page becomes visible
+document.addEventListener('visibilitychange', async () => {
+  if (!document.hidden && gestureActive) {
+    await requestWakeLock();
+    // Restart camera if it stopped
+    if (!mpCamera) {
+      setTimeout(() => {
+        startGesture();
+        toast('🔄 Camera restart झाला');
+      }, 500);
+    }
+  }
+});
+
+// ── State ──
+let gestureActive = false;
+let mpHands = null;
+let mpCamera = null;
+let lastGesture = null;
+let holdCount = 0;
+let cooldown = false;
+
+const cardMap = {
+  'scroll-up':'gc-up','scroll-down':'gc-down',
+  'open':'gc-open','ok':'gc-ok',
+  'thumb-up':'gc-thumb-up','thumb-down':'gc-thumb-down',
+  'peace':'gc-peace','fist':'gc-fist'
+};
+const gestureLabel = {
+  'scroll-up':['☝️','Scroll वर'],
+  'scroll-down':['👇','Scroll खाली'],
+  'open':['✋','Pause / Play'],
+  'ok':['👌','Tap!'],
+  'thumb-up':['👍','Volume +'],
+  'thumb-down':['👎','Volume -'],
+  'peace':['✌️','Back'],
+  'fist':['✊','Screenshot']
+};
+
+// ── Toggle ──
+async function toggleGesture() {
+  const btn = document.getElementById('mainToggle');
+  gestureActive = !gestureActive;
+  btn.classList.toggle('on', gestureActive);
+  if (gestureActive) await startGesture();
+  else stopGesture();
+}
+
+async function startGesture() {
+  document.getElementById('loading-overlay').classList.remove('hide');
+  try {
+    mpHands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+    mpHands.setOptions({
+      maxNumHands: 1, modelComplexity: 1,
+      minDetectionConfidence: 0.7, minTrackingConfidence: 0.6
+    });
+    mpHands.onResults(onResults);
+
+    const video = document.getElementById('video');
+    mpCamera = new Camera(video, {
+      onFrame: async () => { if (mpHands) await mpHands.send({ image: video }); },
+      width: 320, height: 240, facingMode: 'user'
+    });
+    await mpCamera.start();
+    await requestWakeLock();
+
+    document.getElementById('camOff').style.display = 'none';
+    document.getElementById('statusDot').classList.add('on');
+    document.getElementById('statusTxt').textContent = 'Active';
+    document.getElementById('toggleSub').textContent = 'Gesture detection चालू आहे';
+    toast('✅ Hand detection सुरू झाले!');
+  } catch (e) {
+    gestureActive = false;
+    document.getElementById('mainToggle').classList.remove('on');
+    toast('❌ Camera permission द्या किंवा internet तपासा');
+    console.error(e);
+  }
+  document.getElementById('loading-overlay').classList.add('hide');
+}
+
+function stopGesture() {
+  if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+  if (mpHands) { mpHands.close(); mpHands = null; }
+  const video = document.getElementById('video');
+  if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; }
+  releaseWakeLock();
+  document.getElementById('camOff').style.display = 'flex';
+  document.getElementById('statusDot').classList.remove('on');
+  document.getElementById('statusTxt').textContent = 'Camera बंद';
+  document.getElementById('toggleSub').textContent = 'सुरू केल्यावर camera वापरेल';
+  setGLabel('Waiting...', false);
+  clearHighlights();
+  document.getElementById('floatingMini').classList.remove('show');
+  toast('🔴 Gesture control बंद झाले');
+}
+
+function bringToFront() {
+  window.focus();
+  nav('pg-home');
+}
+
+// ── MediaPipe Results ──
+function onResults(results) {
+  const canvas = document.getElementById('overlay');
+  const ctx = canvas.getContext('2d');
+  const video = document.getElementById('video');
+  canvas.width = video.videoWidth || 320;
+  canvas.height = video.videoHeight || 240;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+    setGLabel('हात दाखवा...', false);
+    lastGesture = null; holdCount = 0;
+    return;
+  }
+
+  const lm = results.multiHandLandmarks[0];
+  drawConnectors(ctx, lm, HAND_CONNECTIONS, { color: 'rgba(0,230,118,0.6)', lineWidth: 2 });
+  drawLandmarks(ctx, lm, { color: 'rgba(0,230,118,0.9)', lineWidth: 1, radius: 4 });
+
+  const gesture = classifyGesture(lm);
+  if (gesture) {
+    setGLabel(gestureLabel[gesture][0] + ' ' + gestureLabel[gesture][1], true);
+    if (gesture === lastGesture) {
+      holdCount++;
+      const needed = parseInt(document.getElementById('holdSlider').value);
+      if (holdCount >= needed && !cooldown) {
+        fireGesture(gesture);
+        holdCount = 0;
+        cooldown = true;
+        setTimeout(() => { cooldown = false; }, 1200);
+      }
+    } else { lastGesture = gesture; holdCount = 0; }
+  } else {
+    setGLabel('Waiting...', false);
+    lastGesture = null; holdCount = 0;
+  }
+}
+
+// ── Gesture Classifier ──
+function classifyGesture(lm) {
+  const fingers = [
+    isFingerUp(lm,8,6), isFingerUp(lm,12,10),
+    isFingerUp(lm,16,14), isFingerUp(lm,20,18)
+  ];
+  const thumbUp = lm[4].y < lm[3].y;
+  const thumbDown = lm[4].y > lm[3].y + 0.05;
+  const count = fingers.filter(Boolean).length;
+
+  if (count === 4 && thumbUp) return 'open';
+  if (count === 0 && !thumbUp) return 'fist';
+  if (count === 1 && fingers[0] && !fingers[1] && !fingers[2] && !fingers[3]) {
+    if (lm[8].y < lm[5].y - 0.05) return 'scroll-up';
+    if (lm[8].y > lm[5].y + 0.05) return 'scroll-down';
+    return 'scroll-up';
+  }
+  if (count === 2 && fingers[0] && fingers[1] && !fingers[2] && !fingers[3]) return 'peace';
+  if (count === 0 && thumbUp && !thumbDown) return 'thumb-up';
+  if (count === 0 && thumbDown) return 'thumb-down';
+  const dx = lm[4].x - lm[8].x, dy = lm[4].y - lm[8].y;
+  if (Math.sqrt(dx*dx+dy*dy) < 0.07 && count <= 1) return 'ok';
+  return null;
+}
+
+function isFingerUp(lm, tip, pip) { return lm[tip].y < lm[pip].y; }
+
+// ── Fire Gesture ──
+function fireGesture(g) {
+  vibrate(40);
+  clearHighlights();
+  if (cardMap[g]) document.getElementById(cardMap[g])?.classList.add('lit');
+  setTimeout(clearHighlights, 700);
+
+  const [em, action] = gestureLabel[g];
+  document.getElementById('flashEmoji').textContent = em;
+  document.getElementById('flashAction').textContent = action;
+  const flash = document.getElementById('gFlash');
+  flash.classList.add('show');
+  setTimeout(() => flash.classList.remove('show'), 700);
+  toast(em + ' ' + action);
+
+  switch (g) {
+    case 'scroll-up':   window.scrollBy({ top: -250, behavior: 'smooth' }); break;
+    case 'scroll-down': window.scrollBy({ top: 250, behavior: 'smooth' }); break;
+    case 'open': {
+      const v = document.querySelector('video:not(#video)');
+      if (v) v.paused ? v.play() : v.pause();
+      break;
+    }
+    case 'thumb-up': {
+      const v = document.querySelector('video:not(#video)');
+      if (v) v.volume = Math.min(1, v.volume + 0.1);
+      break;
+    }
+    case 'thumb-down': {
+      const v = document.querySelector('video:not(#video)');
+      if (v) v.volume = Math.max(0, v.volume - 0.1);
+      break;
+    }
+    case 'peace': window.history.back(); break;
+    case 'fist': toast('📸 Screenshot gesture!'); break;
+    case 'ok': {
+      const el = document.elementFromPoint(window.innerWidth/2, window.innerHeight/2);
+      if (el) el.click();
+      break;
+    }
+  }
+}
+
+function setGLabel(text, active) {
+  document.getElementById('gLabel').textContent = text;
+  document.getElementById('gDot').classList.toggle('on', active);
+  document.getElementById('gestureBadge').classList.toggle('active', active);
+}
+
+function clearHighlights() {
+  document.querySelectorAll('.g-card').forEach(c => c.classList.remove('lit'));
+}
+
+// Initial wake banner state
+updateWakeBanner(false);
+</script>
+</body>
+</html>
