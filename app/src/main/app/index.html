@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GestureShield</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+        }
+        #videoContainer {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            margin: 20px auto;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        #videoElement, #canvasElement {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #videoElement {
+            transform: scaleX(-1);
+        }
+        #canvasElement {
+            transform: scaleX(-1);
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+            margin: 20px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #4CAF50;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        .status {
+            font-size: 18px;
+            margin: 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .gesture-info {
+            font-size: 24px;
+            margin: 20px;
+            padding: 15px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>GestureShield</h1>
+    <p>Screen न touch करता control | Real hand detection — 100% privacy safe</p>
+    
+    <div class="toggle-switch">
+        <input type="checkbox" id="cameraToggle">
+        <span class="slider"></span>
+    </div>
+    <span id="toggleStatus">Camera बंद</span>
+
+    <div id="videoContainer">
+        <video id="videoElement" autoplay playsinline></video>
+        <canvas id="canvasElement"></canvas>
+    </div>
+
+    <div class="gesture-info" id="gestureDisplay">
+        👋 Gesture येथे दिसेल
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script>
+        const videoElement = document.getElementById('videoElement');
+        const canvasElement = document.getElementById('canvasElement');
+        const canvasCtx = canvasElement.getContext('2d');
+        const cameraToggle = document.getElementById('cameraToggle');
+        const toggleStatus = document.getElementById('toggleStatus');
+        const gestureDisplay = document.getElementById('gestureDisplay');
+
+        let camera = null;
+        let lastGesture = '';
+
+        const hands = new Hands({
+            locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+            }
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults(onHandResults);
+
+        function onHandResults(results) {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiHandLandmarks) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
+                    drawLandmarks(canvasCtx, landmarks, { color: '#FF0000', lineWidth: 1 });
+                    
+                    // Detect gestures
+                    const gesture = detectGesture(landmarks);
+                    if (gesture) {
+                        gestureDisplay.innerHTML = getGestureEmoji(gesture) + ' ' + gesture;
+                        performAction(gesture);
+                    }
+                }
+            }
+            canvasCtx.restore();
+        }
+
+        function detectGesture(landmarks) {
+            const thumbTip = landmarks[4];
+            const indexTip = landmarks[8];
+            const middleTip = landmarks[12];
+            const ringTip = landmarks[16];
+            const pinkyTip = landmarks[20];
+            
+            const thumbExtended = thumbTip.y < landmarks[3].y;
+            const indexExtended = indexTip.y < landmarks[6].y;
+            const middleExtended = middleTip.y < landmarks[10].y;
+            const ringExtended = ringTip.y < landmarks[14].y;
+            const pinkyExtended = pinkyTip.y < landmarks[18].y;
+
+            const extendedCount = [indexExtended, middleExtended, ringExtended, pinkyExtended].filter(Boolean).length;
+
+            if (extendedCount === 0 && !thumbExtended) return '✊ Screenshot';
+            if (extendedCount === 1 && indexExtended && !thumbExtended) return '☝️ Scroll Up';
+            if (extendedCount === 1 && indexExtended && thumbExtended) return '👎 Volume Down';
+            if (extendedCount === 2 && indexExtended && middleExtended) return '✌️ Back';
+            if (extendedCount === 4 && thumbExtended) return '👍 Volume Up';
+            if (extendedCount === 4 && !thumbExtended) return '👌 Tap';
+            if (extendedCount === 5) return '✋ Pause/Play';
+            if (extendedCount === 1 && pinkyExtended) return '👇 Scroll Down';
+
+            return null;
+        }
+
+        function getGestureEmoji(gesture) {
+            const emojis = {
+                '☝️ Scroll Up': '☝️',
+                '👇 Scroll Down': '👇',
+                '✋ Pause/Play': '✋',
+                '👌 Tap': '👌',
+                '👍 Volume Up': '👍',
+                '👎 Volume Down': '👎',
+                '✌️ Back': '✌️',
+                '✊ Screenshot': '✊'
+            };
+            return emojis[gesture] || '👋';
+        }
+
+        function performAction(gesture) {
+            if (gesture !== lastGesture) {
+                lastGesture = gesture;
+                console.log('Gesture detected:', gesture);
+                
+                if (navigator.vibrate) {
+                    navigator.vibrate(50);
+                }
+            }
+        }
+
+        cameraToggle.addEventListener('change', async function() {
+            if (this.checked) {
+                try {
+                    camera = new Camera(videoElement, {
+                        onFrame: async () => {
+                            await hands.send({image: videoElement});
+                        },
+                        width: 640,
+                        height: 480
+                    });
+                    camera.start();
+                    toggleStatus.textContent = 'Camera चालू';
+                } catch (error) {
+                    console.error('Error starting camera:', error);
+                    toggleStatus.textContent = 'Camera त्रुटी';
+                    this.checked = false;
+                }
+            } else {
+                if (camera) {
+                    camera.stop();
+                    toggleStatus.textContent = 'Camera बंद';
+                }
+            }
+        });
+    </script>
+</body>
+</html>
